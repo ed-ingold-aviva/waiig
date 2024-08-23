@@ -164,10 +164,7 @@ func nextToken(state *lexerState) token.Token {
 
 	var tok token.Token
 	if ch == EofByte {
-		tok = token.Token{
-			Type:    token.EOF,
-			Literal: "",
-		}
+		tok = token.Token{Type: token.EOF}
 	} else if doubleToken, ok := getDouble(ch, state); ok {
 		tok = doubleToken
 	} else if unitToken, ok := unitTokens[string(ch)]; ok {
