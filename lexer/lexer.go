@@ -21,6 +21,10 @@ func isWhitespace(ch byte) bool {
 	return ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n' || ch == '\v' || ch == '\f'
 }
 
+func buildString(initialByte byte, rest []byte) string {
+	return string(append([]byte{initialByte}, rest...))
+}
+
 type lexerState struct {
 	toProcess string
 }
@@ -60,64 +64,6 @@ func (l *lexerState) getNextBytes(cond func(byte) bool) (resultBytes []byte) {
 	}
 }
 
-var unitTokens = make(map[string]token.Token)
-
-func init() {
-	for _, tokenType := range []token.TokenType{
-		token.ASSIGN,
-		token.PLUS,
-		token.MINUS,
-		token.BANG,
-		token.ASTERISK,
-		token.SLASH,
-		token.COMMA,
-		token.SEMICOLON,
-		token.LPAREN,
-		token.RPAREN,
-		token.LBRACE,
-		token.RBRACE,
-		token.LT,
-		token.GT,
-	} {
-		strToken := string(tokenType)
-		unitTokens[strToken] = token.Token{
-			Type:    tokenType,
-			Literal: strToken,
-		}
-	}
-}
-
-var keywordTokens = map[string]token.Token{
-	"let": {
-		Type:    token.LET,
-		Literal: "let",
-	},
-	"fn": {
-		Type:    token.FUNCTION,
-		Literal: "fn",
-	},
-	"true": {
-		Type:    token.TRUE,
-		Literal: "true",
-	},
-	"false": {
-		Type:    token.FALSE,
-		Literal: "false",
-	},
-	"if": {
-		Type:    token.IF,
-		Literal: "if",
-	},
-	"else": {
-		Type:    token.ELSE,
-		Literal: "else",
-	},
-	"return": {
-		Type:    token.RETURN,
-		Literal: "return",
-	},
-}
-
 func consumeWhitespace(state *lexerState) {
 	_ = state.getNextBytes(isWhitespace)
 	return
@@ -126,10 +72,10 @@ func consumeWhitespace(state *lexerState) {
 func getDouble(ch byte, state *lexerState) (tok token.Token, ok bool) {
 	nextChar := state.peek()
 	if ch == '=' && nextChar == '=' {
-		tok = token.Token{Type: token.EQ, Literal: "=="}
+		tok = eqToken
 		ok = true
 	} else if ch == '!' && nextChar == '=' {
-		tok = token.Token{Type: token.NOT_EQ, Literal: "!="}
+		tok = neqToken
 		ok = true
 	}
 	if ok {
@@ -141,21 +87,19 @@ func getDouble(ch byte, state *lexerState) (tok token.Token, ok bool) {
 func getStringToken(ch byte, state *lexerState) token.Token {
 	nextStringBytes := state.getNextBytes(isLetter)
 
-	literal := string(append([]byte{ch}, nextStringBytes...))
-
+	literal := buildString(ch, nextStringBytes)
 	var tok token.Token
 	if keywordToken, ok := keywordTokens[literal]; ok {
 		tok = keywordToken
 	} else {
-		tok = token.Token{Type: token.IDENT, Literal: literal}
+		tok = identToken(literal)
 	}
 	return tok
 }
 
 func getDigitToken(ch byte, state *lexerState) token.Token {
 	nextDigitBytes := state.getNextBytes(isDigit)
-	literal := string(append([]byte{ch}, nextDigitBytes...))
-	return token.Token{Type: token.INT, Literal: literal}
+	return digitToken(buildString(ch, nextDigitBytes))
 }
 
 func nextToken(state *lexerState) token.Token {
@@ -164,17 +108,17 @@ func nextToken(state *lexerState) token.Token {
 
 	var tok token.Token
 	if ch == EofByte {
-		tok = token.Token{Type: token.EOF}
+		tok = eofToken
 	} else if doubleToken, ok := getDouble(ch, state); ok {
 		tok = doubleToken
-	} else if unitToken, ok := unitTokens[string(ch)]; ok {
+	} else if unitToken, ok := unitTokens[ch]; ok {
 		tok = unitToken
 	} else if isLetter(ch) {
 		tok = getStringToken(ch, state)
 	} else if isDigit(ch) {
 		tok = getDigitToken(ch, state)
 	} else {
-		tok = token.Token{Type: token.ILLEGAL, Literal: string(ch)}
+		tok = illegalToken(ch)
 	}
 	return tok
 }
@@ -183,9 +127,8 @@ func Lex(input string) iter.Seq[token.Token] {
 	state := newLexerState(input)
 
 	return func(yield func(token.Token) bool) {
-		var tok token.Token
 		for {
-			tok = nextToken(state)
+			tok := nextToken(state)
 
 			if !yield(tok) || tok.Type == token.EOF || tok.Type == token.ILLEGAL {
 				break
