@@ -192,16 +192,12 @@ if (5 < 10) {
 		tt := tt
 		t.Run(name, func(t *testing.T) {
 			// given
-			l := New(tt.input)
+			l := Lex(tt.input)
 
 			// when
 			var result []token.Token
-			for {
-				tok := l.NextToken()
+			for tok := range l {
 				result = append(result, tok)
-				if tok.Type == token.EOF || tok.Type == token.ILLEGAL {
-					break
-				}
 			}
 
 			// then
