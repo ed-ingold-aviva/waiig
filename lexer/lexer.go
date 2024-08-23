@@ -17,32 +17,24 @@ func isWhitespace(ch byte) bool {
 	return ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n' || ch == '\v' || ch == '\f'
 }
 
-type lexerState struct {
-	input    string
-	position int
-}
+type lexerState string
 
 func (l lexerState) finished() bool {
-	return l.position >= len(l.input)
+	return l == ""
 }
 
 func (l lexerState) next() (byte, lexerState) {
 	if l.finished() {
 		return 0, l
 	}
-	next := l.input[l.position]
-	nextState := lexerState{
-		input:    l.input,
-		position: l.position + 1,
-	}
-	return next, nextState
+	return l[0], l[1:]
 }
 
 func (l lexerState) peek() byte {
 	if l.finished() {
 		return 0
 	}
-	return l.input[l.position]
+	return l[0]
 }
 
 func (l lexerState) getNextBytes(cond func(byte) bool) (resultBytes []byte, resultState lexerState) {
@@ -55,21 +47,6 @@ func (l lexerState) getNextBytes(cond func(byte) bool) (resultBytes []byte, resu
 		resultByte, resultState = resultState.next()
 		resultBytes = append(resultBytes, resultByte)
 	}
-}
-
-var eqToken = token.Token{
-	Type:    token.EQ,
-	Literal: "==",
-}
-
-var neqToken = token.Token{
-	Type:    token.NOT_EQ,
-	Literal: "!=",
-}
-
-var eofToken = token.Token{
-	Type:    token.EOF,
-	Literal: "",
 }
 
 var unitTokens = make(map[string]token.Token)
@@ -135,13 +112,13 @@ func consumeWhitespace(state lexerState) lexerState {
 	return newState
 }
 
-func getDouble(ch byte, state lexerState) (token token.Token, newState lexerState, ok bool) {
+func getDouble(ch byte, state lexerState) (tok token.Token, newState lexerState, ok bool) {
 	nextChar := state.peek()
 	if ch == '=' && nextChar == '=' {
-		token = eqToken
+		tok = token.Token{Type: token.EQ, Literal: "=="}
 		ok = true
 	} else if ch == '!' && nextChar == '=' {
-		token = neqToken
+		tok = token.Token{Type: token.NOT_EQ, Literal: "!="}
 		ok = true
 	}
 	if ok {
@@ -183,7 +160,10 @@ func nextToken(state lexerState) (token.Token, lexerState) {
 	ch, state = consumeWhitespace(state).next()
 
 	if ch == 0 {
-		tok = eofToken
+		tok = token.Token{
+			Type:    token.EOF,
+			Literal: "",
+		}
 	} else if doubleToken, newState, ok := getDouble(ch, state); ok {
 		tok = doubleToken
 		state = newState
@@ -201,9 +181,7 @@ func nextToken(state lexerState) (token.Token, lexerState) {
 }
 
 func Lex(input string) iter.Seq[token.Token] {
-	state := lexerState{
-		input: input,
-	}
+	state := lexerState(input)
 
 	return func(yield func(token.Token) bool) {
 		var tok token.Token
