@@ -2,6 +2,18 @@ package lexer
 
 import "monkey/token"
 
+// doubleTokens are tokens that have exactly two characters
+var doubleTokens = map[string]token.Token{
+	"!=": {
+		Type:    token.NOT_EQ,
+		Literal: "!=",
+	},
+	"==": {
+		Type:    token.EQ,
+		Literal: "==",
+	},
+}
+
 // unitTokens are tokens that are exactly one character long
 // and whose lexical representation is the same as the string on the token type
 var unitTokens = make(map[byte]token.Token)
@@ -64,16 +76,6 @@ var keywordTokens = map[string]token.Token{
 		Type:    token.RETURN,
 		Literal: "return",
 	},
-}
-
-var eqToken = token.Token{
-	Type:    token.EQ,
-	Literal: "==",
-}
-
-var neqToken = token.Token{
-	Type:    token.NOT_EQ,
-	Literal: "!=",
 }
 
 var eofToken = token.Token{

@@ -21,10 +21,6 @@ func isWhitespace(ch byte) bool {
 	return ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n' || ch == '\v' || ch == '\f'
 }
 
-func buildString(initialByte byte, rest []byte) string {
-	return string(append([]byte{initialByte}, rest...))
-}
-
 type lexerState struct {
 	toProcess string
 }
@@ -55,39 +51,42 @@ func (l *lexerState) peek() byte {
 	return l.toProcess[0]
 }
 
-func (l *lexerState) getNextBytes(cond func(byte) bool) (resultBytes []byte) {
+// getStringForCond consumes the lexerState for character's that pass the
+// required condition. If a character fails the cond, it is not consumed.
+//
+// The resultant bytes are converted to a string.
+//
+// The init parameter allows you to initialise the byte array that is built up
+// so those bytes will end up at the start of the returned string.
+func (l *lexerState) getStringForCond(cond func(byte) bool, init ...byte) string {
 	for {
 		if !cond(l.peek()) {
-			return
+			return string(init)
 		}
-		resultBytes = append(resultBytes, l.next())
+		init = append(init, l.next())
 	}
 }
 
 func consumeWhitespace(state *lexerState) {
-	_ = state.getNextBytes(isWhitespace)
+	_ = state.getStringForCond(isWhitespace)
 	return
 }
 
-func getDouble(ch byte, state *lexerState) (tok token.Token, ok bool) {
-	nextChar := state.peek()
-	if ch == '=' && nextChar == '=' {
-		tok = eqToken
-		ok = true
-	} else if ch == '!' && nextChar == '=' {
-		tok = neqToken
-		ok = true
-	}
-	if ok {
+func getDoubleToken(ch byte, state *lexerState) (tok token.Token, tokenFound bool) {
+	double := string([]byte{ch, state.peek()})
+
+	if doubleToken, ok := doubleTokens[double]; ok {
+		tok = doubleToken
+		tokenFound = true
+		// need to consume second character as well
 		_ = state.next()
 	}
 	return
 }
 
 func getStringToken(ch byte, state *lexerState) token.Token {
-	nextStringBytes := state.getNextBytes(isLetter)
+	literal := state.getStringForCond(isLetter, ch)
 
-	literal := buildString(ch, nextStringBytes)
 	var tok token.Token
 	if keywordToken, ok := keywordTokens[literal]; ok {
 		tok = keywordToken
@@ -98,8 +97,7 @@ func getStringToken(ch byte, state *lexerState) token.Token {
 }
 
 func getDigitToken(ch byte, state *lexerState) token.Token {
-	nextDigitBytes := state.getNextBytes(isDigit)
-	return digitToken(buildString(ch, nextDigitBytes))
+	return digitToken(state.getStringForCond(isDigit, ch))
 }
 
 func nextToken(state *lexerState) token.Token {
@@ -109,7 +107,8 @@ func nextToken(state *lexerState) token.Token {
 	var tok token.Token
 	if ch == EofByte {
 		tok = eofToken
-	} else if doubleToken, ok := getDouble(ch, state); ok {
+	} else if doubleToken, ok := getDoubleToken(ch, state); ok {
+		// Need to process the double tokens before unit ones
 		tok = doubleToken
 	} else if unitToken, ok := unitTokens[ch]; ok {
 		tok = unitToken
