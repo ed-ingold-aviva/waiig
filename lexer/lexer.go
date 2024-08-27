@@ -59,17 +59,15 @@ func (l *lexerState) peek() byte {
 // The init parameter allows you to initialise the byte array that is built up
 // so those bytes will end up at the start of the returned string.
 func (l *lexerState) getStringForCond(cond func(byte) bool, init ...byte) string {
-	for {
-		if !cond(l.peek()) {
-			return string(init)
-		}
-		init = append(init, l.next())
+	agg := append([]byte{}, init...)
+	for cond(l.peek()) {
+		agg = append(agg, l.next())
 	}
+	return string(agg)
 }
 
 func consumeWhitespace(state *lexerState) {
 	_ = state.getStringForCond(isWhitespace)
-	return
 }
 
 func getDoubleToken(ch byte, state *lexerState) (tok token.Token, tokenFound bool) {
@@ -84,10 +82,8 @@ func getDoubleToken(ch byte, state *lexerState) (tok token.Token, tokenFound boo
 	return
 }
 
-func getStringToken(ch byte, state *lexerState) token.Token {
+func getStringToken(ch byte, state *lexerState) (tok token.Token) {
 	literal := state.getStringForCond(isLetter, ch)
-
-	var tok token.Token
 	if keywordToken, ok := keywordTokens[literal]; ok {
 		tok = keywordToken
 	} else {
@@ -108,7 +104,7 @@ func nextToken(state *lexerState) token.Token {
 	if ch == EofByte {
 		tok = eofToken
 	} else if doubleToken, ok := getDoubleToken(ch, state); ok {
-		// Need to process the double tokens before unit ones
+		// Need to check for double tokens before unit ones
 		tok = doubleToken
 	} else if unitToken, ok := unitTokens[ch]; ok {
 		tok = unitToken
